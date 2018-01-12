@@ -8,14 +8,13 @@ import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.Arrays;
-import java.util.Random;
 
 public class MazeEnv extends Environment {
 
     private Logger logger = Logger.getLogger("MazeAgents.mas2j."+MazeEnv.class.getName());
 	private int[][] mazeData;
 	private int[][] rXLoc;
-	private int[] finishLoc;
+	private Point finishLoc;
 	private int stepDelay;
 	
 	private mazePanel maze;
@@ -36,7 +35,7 @@ public class MazeEnv extends Environment {
 		buildMaze(mazeSize);
 		placeAgents(mazeSize);
 		placeFinishLocation(mazeSize);
-		logger.info("\nFinishing location: (" +finishLoc[0]+","+finishLoc[1]+")\n");
+		logger.info("\nFinishing location: (" +finishLoc.x+","+finishLoc.y+")\n");
 		new Thread(){//run GUI in seperate thread
 			public void run(){
 				createAndShowGui();
@@ -92,11 +91,11 @@ public class MazeEnv extends Environment {
         addPercept(pos1);
         Literal pos2 = Literal.parseLiteral("pos(r2," + rXLoc[1][0] + "," + rXLoc[1][1] + "," + rXLoc[1][2] + ")");
         addPercept(pos2);
-		if (finishLoc[0] == rXLoc[0][0] && finishLoc[1] == rXLoc[0][1]) {
+		if (finishLoc.x == rXLoc[0][0] && finishLoc.y == rXLoc[0][1]) {
 			Literal finish = Literal.parseLiteral("finish(r1)");
 			addPercept(finish);
 		}
-		if (finishLoc[0] == rXLoc[1][0] && finishLoc[1] == rXLoc[1][1]) {
+		if (finishLoc.x == rXLoc[1][0] && finishLoc.y == rXLoc[1][1]) {
 			Literal finish = Literal.parseLiteral("finish(r2)");
 			addPercept(finish);
 		}
@@ -237,8 +236,8 @@ public class MazeEnv extends Environment {
 			int x;
 			int y;
 			do {
-				x = (int) (Math.random() * mazeSize-1);
-				y = (int) (Math.random() * mazeSize-1);
+				x = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
+				y = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
 			} while (mazeData[x][y] == 1);
 		
 			rXLoc[0][0] = x;
@@ -250,8 +249,8 @@ public class MazeEnv extends Environment {
 			int x;
 			int y;
 			do {
-				x = (int) (Math.random() * mazeSize-1);
-				y = (int) (Math.random() * mazeSize-1);
+				x = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
+				y = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
 			} while (mazeData[x][y] == 1);
 		
 			rXLoc[1][0] = x;
@@ -266,12 +265,10 @@ public class MazeEnv extends Environment {
 		int x;
 		int y;
 		do {
-			x = (int) (Math.random() * mazeSize-1);
-			y = (int) (Math.random() * mazeSize-1);
+			x = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
+			y = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
 		} while (mazeData[x][y] == 1);
-		finishLoc = new int[2];//init
-		finishLoc[0] = x;
-		finishLoc[1] = y;
+		finishLoc = new Point(x, y);//init
 		
 		mazeData[x][y] = 2;
 		
