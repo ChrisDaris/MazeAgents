@@ -285,6 +285,7 @@ public class MazeEnv extends Environment {
 		finishLoc = new Point(x, y);//init
 		
 		mazeData[x][y] = 2;
+
 	}
 	
 	/** Prints maze in console, used in debugging*/
