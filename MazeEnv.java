@@ -105,49 +105,59 @@ public class MazeEnv extends Environment {
 		recursiveDivision(new Point(1, 1), new Point(mazeSize - 1, mazeSize - 1));
 	}
 	
+	/**
+	* Clears the unneeded believes of an agent
+	*
+	* @param aC: the number of the specific agent (0: first agent, 1: second...)
+	*/
 	private void clearPercepts(int aC) {
 	//	clearPercepts();
-		clearPercepts(rXLoc[aC].getID());
+		if (aC == 1 || aC == 0) {
+			clearPercepts(rXLoc[aC].getID());
+		} else if ( aC == 2) {
+			removePerceptsByUnif(rXLoc[aC].getID(), Literal.parseLiteral("empty(_,_,_,_,_)"));
+			removePercept(rXLoc[aC].getID(), Literal.parseLiteral("crossroad(slots)"));
+		}
 	}
 	
+	/**
+	* Update the perceptions of the agents according to the maze (GUI). For 
+	* instance, checks if agent is in the finishing cell and creates belief 
+	* accordingly
+	*
+	* @param aC: the number of the specific agent (0: first agent, 1: second...)
+	*/
 	private void updatePercepts(int aC) {
-	//	Literal agentPot = Literal.parseLiteral("pos(" + rXLoc[aC].getCoordinatesID2() + ")");
-	//	addPercept(rXLoc[aC].getID(), agentPot);
+	 	if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] == 2
+				|| mazeData[rXLoc[aC].getOnLeftX()][rXLoc[aC].getOnLeftY()] == 2
+				|| mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] == 2) {
+			Literal finish = Literal.parseLiteral("finish(" + rXLoc[aC].getID() + ")");
+			addPercept(rXLoc[aC].getID(), finish);
+		} 
 	    if (aC == 0) {
-			if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] == 0) {
+			if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] != 1) {
 				Literal right = Literal.parseLiteral("rightEmpty(" + rXLoc[aC].getOnRightX() + "," + rXLoc[aC].getOnRightY() + ")");
 				addPercept(rXLoc[aC].getID(), right);
-			} else if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] == 2) {
-				Literal finish = Literal.parseLiteral("finish(" + rXLoc[aC].getID() + ")");
-				addPercept(rXLoc[aC].getID(), finish);
-			} else if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] == 0) {
+			} else if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] != 1) {
 				Literal up = Literal.parseLiteral("upEmpty(" + rXLoc[aC].getOnFrontX() + "," + rXLoc[aC].getOnFrontY() + ")");
 				addPercept(rXLoc[aC].getID(), up);
-			} else if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] == 2) {
-				Literal finish = Literal.parseLiteral("finish(" + rXLoc[aC].getID() + ")");
-				addPercept(rXLoc[aC].getID(), finish);
 			}
 	    } else if(aC == 1) {
-	    	if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] == 0) {
+	    	if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] != 1) {
 				Literal up = Literal.parseLiteral("empty(" + rXLoc[aC].getOnFrontX() + "," + rXLoc[aC].getOnFrontY() + ")");
 				addPercept(rXLoc[aC].getID(), up);
-	    	} else if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] == 2 
-	    	|| mazeData[rXLoc[aC].getOnLeftX()][rXLoc[aC].getOnLeftY()] == 2 
-	    	|| mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] == 2) { 
-				Literal finish = Literal.parseLiteral("finish(" + rXLoc[aC].getID() + ")");
-				addPercept(rXLoc[aC].getID(), finish);
-	    	}else {
+	    	} else {
 	    		// -1: neither L nor R empty
 	    		//  0: only L empty
 	    		//  1: only R empty
 	    		//  2: both empty
 	    		int whatEmpty = -1;
 	    		int direction = -1;
-	    		if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] == 0) {
+	    		if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] != 1) {
 	    			whatEmpty = 1;
 	    			direction = 0;
 	    		}
-	    		if (mazeData[rXLoc[aC].getOnLeftX()][rXLoc[aC].getOnLeftY()] == 0) {
+	    		if (mazeData[rXLoc[aC].getOnLeftX()][rXLoc[aC].getOnLeftY()] != 1) {
 	    			whatEmpty++;
 	    			direction = 1;
 	    		}
@@ -163,9 +173,51 @@ public class MazeEnv extends Environment {
 					addPercept(rXLoc[aC].getID(), newEmpty);
 				}
 	    	}
-        }
+	    } else if(aC == 2) {
+	    	int priority1, priority2, priority3;  
+//	    	int temp = ThreadLocalRandom.current().nextInt(0, 3);
+	    	priority1 = 0;
+	    	priority2 = 1;
+	    	priority3 = 2;
+	    	int howManyRoads = 0;
+	    	if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] != 1) {
+				Literal up = Literal.parseLiteral("empty(" + priority1 + "," 
+					+ rXLoc[aC].getOnFrontX() + "," + rXLoc[aC].getOnFrontY() + "," 
+					+ rXLoc[aC].getZX() + "," + rXLoc[aC].getZY() + ")");
+				addPercept(rXLoc[aC].getID(), up);
+				howManyRoads++;
+	    	}
+	    	if (mazeData[rXLoc[aC].getOnLeftX()][rXLoc[aC].getOnLeftY()] != 1) {
+				Literal left = Literal.parseLiteral("empty(" + priority2 + "," 
+					+ rXLoc[aC].getOnLeftX() + "," + rXLoc[aC].getOnLeftY() + "," 
+					+ -rXLoc[aC].getZY() + "," + rXLoc[aC].getZX() + ")");
+				addPercept(rXLoc[aC].getID(), left);
+				howManyRoads++;
+	    	}
+	    	if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] != 1) {
+				Literal right = Literal.parseLiteral("empty(" + priority3 + "," 
+					+ rXLoc[aC].getOnRightX() + "," + rXLoc[aC].getOnRightY() + "," 
+					+ rXLoc[aC].getZY() + "," + -rXLoc[aC].getZX() + ")");
+				addPercept(rXLoc[aC].getID(), right);
+				howManyRoads++;
+			}
+			if (howManyRoads > 1) {
+				Literal cross = Literal.parseLiteral("crossroad(slots)");
+				addPercept(rXLoc[aC].getID(), cross);
+			}
+	    }
 	}
 	
+	/**
+	* Update the position of the agent on mazeData according to his belief base,
+	* so as to move him on the GUI
+	*
+	* @param aC: the number of the specific agent (0: first agent, 1: second...)
+	* @param x: The new x'x position
+	* @param y: The new y'y position
+	* @param zx: The new ZX direction
+	* @param zy: The new ZY direction
+	*/
 	private void nextSlot(int aC, int x, int y, int zx, int zy) {
 		mazeData[rXLoc[aC].getX()][rXLoc[aC].getY()] = 0; // Empty the previous position
 		rXLoc[aC].setXY(x,y);
@@ -175,6 +227,12 @@ public class MazeEnv extends Environment {
 		}
 	}
 	
+	/**
+	* Because the agent is in the finishing cell, remove the agent from the GUI
+	* and print a message
+	*
+	* @param aC: the number of the specific agent (0: first agent, 1: second...)
+	*/
 	private void removeAgentFromMD(int aC) {
 		mazeData[rXLoc[aC].getX()][rXLoc[aC].getY()] = 0;
     	logger.info("=== Agent " + rXLoc[aC].getID() + " finished ===");
@@ -283,7 +341,6 @@ public class MazeEnv extends Environment {
 			y = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
 		} while (mazeData[x][y] == 1);
 		finishLoc = new Point(x, y);//init
-		
 		mazeData[x][y] = 2;
 
 	}

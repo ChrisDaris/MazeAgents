@@ -1,6 +1,10 @@
 // Initial plan of the agent is to get his starting position from the env 
 !getPosition(slots).
 
+// Debug line start
+//+!getPosition(slots).
+// Debug line end
+
 // we need the starting position from the env. "starting(slots)" creates a "starter(X,Y,ZX,ZY)" with the positions
 +!getPosition(slots) : not starter(_,_,_,_) <- starting(slots); !getPosition(slots).  
 
