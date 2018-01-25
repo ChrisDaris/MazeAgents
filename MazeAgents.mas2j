@@ -5,9 +5,9 @@ MAS mazeAgents {
     infrastructure: Centralised
 
     environment: MazeEnv
-
+    
     agents:
-       r1; r2;
+       r1; r2; r3;
 
 }
 

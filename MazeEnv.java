@@ -8,19 +8,23 @@ import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.Arrays;
-import java.util.Random;
+
+import java.util.List;
+import java.util.ArrayList;
 
 public class MazeEnv extends Environment {
 
     private Logger logger = Logger.getLogger("MazeAgents.mas2j."+MazeEnv.class.getName());
 	private int[][] mazeData;
-	private int[][] rXLoc;
-	private int[] finishLoc;
+	private AgentLocation[] rXLoc; // 
+	private Point finishLoc; // the finishing location that the Agents want ro reach
 	private int stepDelay;
 	
 	private mazePanel maze;
-	public static final Term    ns = Literal.parseLiteral("next(slots)");
-	
+	public static final Term ns = Literal.parseLiteral("next(slots)");
+	public static final Term st = Literal.parseLiteral("starting(slots)");
+	public static final Term fs = Literal.parseLiteral("finished(slots)");
+
     /** Called before the MAS execution with the args informed in .mas2j */
     @Override
     public void init(String[] args) {
@@ -34,9 +38,9 @@ public class MazeEnv extends Environment {
 			mazeSize = 24;
 		}
 		buildMaze(mazeSize);
-		placeAgents(mazeSize);
 		placeFinishLocation(mazeSize);
-		logger.info("\nFinishing location: (" +finishLoc[0]+","+finishLoc[1]+")\n");
+		placeAgents(mazeSize);
+		logger.info("\nFinishing location: (" +finishLoc.x+","+finishLoc.y+")\n");
 		new Thread(){//run GUI in seperate thread
 			public void run(){
 				createAndShowGui();
@@ -44,25 +48,41 @@ public class MazeEnv extends Environment {
 			}
 			
 		}.start();
-        //addPercept(ASSyntax.parseLiteral("percept(demo)"));
+        //addPercept(rXLoc[aC].getID(), ASSyntax.parseLiteral("percept(demo)"));
     }
 
+    /**
+     * Finds the action that a specific agent wants to perform
+     *
+     * @param agName: the name of the agent
+     * @param action: the action that the agent is performing
+     */
     @Override
     public synchronized boolean executeAction(String agName, Structure action) {
-    	if(new String("r1").equals(agName)){
-        	logger.info("executing: "+action+ "\nAgent: r1, ("+rXLoc[0][0] + "," + rXLoc[0][1] + "," + rXLoc[0][2] + ")");
-		    if (action.equals(ns)) { // you may improve this condition
-		    	nextSlot(0);
-		        informAgsEnvironmentChanged();
-		    }
-		} else if(new String("r2").equals(agName)){
-		    logger.info("executing: "+action+ "\nAgent: r2, ("+rXLoc[1][0] + "," + rXLoc[1][1] + "," + rXLoc[1][2] + ")");
-		    if (action.equals(ns)) { // you may improve this condition
-		    	nextSlot(1);
-		        informAgsEnvironmentChanged();
-		    }
-		}
-        updatePercepts();
+    	int aC=0;
+    	while (!rXLoc[aC].getID().equals(agName)) { // find who from the agents is
+    		aC++;
+    	}
+      	logger.info(rXLoc[aC].getID() + " exec: " +action+ ", Loc(" + rXLoc[aC].getCoordinatesID() + ")");
+	    if (action.equals(ns)) {
+    //		nextSlot(aC);
+	    } else if (action.equals(st)) {
+			Literal pos = Literal.parseLiteral("starter(" + rXLoc[aC].getCoordinates() + ")");
+			addPercept(rXLoc[aC].getID(), pos);
+	    } else if (action.getFunctor().equals("next")) {
+        	try {
+			    int x = (int)((NumberTerm)action.getTerm(0)).solve();
+			    int y = (int)((NumberTerm)action.getTerm(1)).solve();
+			    int zx = (int)((NumberTerm)action.getTerm(2)).solve();
+			    int zy = (int)((NumberTerm)action.getTerm(3)).solve();
+				nextSlot(aC, x, y, zx, zy);
+				clearPercepts(aC);
+			} catch (Exception e) {}
+	    } else if (action.equals(fs)) {
+	    	removeAgentFromMD(aC);
+			clearPercepts(aC);
+	    }
+		updatePercepts(aC);
         
         if(maze != null){
     	    maze.repaint();
@@ -85,91 +105,138 @@ public class MazeEnv extends Environment {
 		recursiveDivision(new Point(1, 1), new Point(mazeSize - 1, mazeSize - 1));
 	}
 	
-	private void updatePercepts() {
-		clearPercepts();
-		
-        Literal pos1 = Literal.parseLiteral("pos(r1," + rXLoc[0][0] + "," + rXLoc[0][1] + "," + rXLoc[0][2] + ")");
-        addPercept(pos1);
-        Literal pos2 = Literal.parseLiteral("pos(r2," + rXLoc[1][0] + "," + rXLoc[1][1] + "," + rXLoc[1][2] + ")");
-        addPercept(pos2);
-		if (finishLoc[0] == rXLoc[0][0] && finishLoc[1] == rXLoc[0][1]) {
-			Literal finish = Literal.parseLiteral("finish(r1)");
-			addPercept(finish);
-		}
-		if (finishLoc[0] == rXLoc[1][0] && finishLoc[1] == rXLoc[1][1]) {
-			Literal finish = Literal.parseLiteral("finish(r2)");
-			addPercept(finish);
+	/**
+	* Clears the unneeded believes of an agent
+	*
+	* @param aC: the number of the specific agent (0: first agent, 1: second...)
+	*/
+	private void clearPercepts(int aC) {
+	//	clearPercepts();
+		if (aC == 1 || aC == 0) {
+			clearPercepts(rXLoc[aC].getID());
+		} else if ( aC == 2) {
+			removePerceptsByUnif(rXLoc[aC].getID(), Literal.parseLiteral("empty(_,_,_,_,_)"));
+			removePercept(rXLoc[aC].getID(), Literal.parseLiteral("crossroad(slots)"));
 		}
 	}
 	
+	/**
+	* Update the perceptions of the agents according to the maze (GUI). For 
+	* instance, checks if agent is in the finishing cell and creates belief 
+	* accordingly
+	*
+	* @param aC: the number of the specific agent (0: first agent, 1: second...)
+	*/
+	private void updatePercepts(int aC) {
+	 	if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] == 2
+				|| mazeData[rXLoc[aC].getOnLeftX()][rXLoc[aC].getOnLeftY()] == 2
+				|| mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] == 2) {
+			Literal finish = Literal.parseLiteral("finish(" + rXLoc[aC].getID() + ")");
+			addPercept(rXLoc[aC].getID(), finish);
+		} 
+	    if (aC == 0) {
+			if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] != 1) {
+				Literal right = Literal.parseLiteral("rightEmpty(" + rXLoc[aC].getOnRightX() + "," + rXLoc[aC].getOnRightY() + ")");
+				addPercept(rXLoc[aC].getID(), right);
+			} else if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] != 1) {
+				Literal up = Literal.parseLiteral("upEmpty(" + rXLoc[aC].getOnFrontX() + "," + rXLoc[aC].getOnFrontY() + ")");
+				addPercept(rXLoc[aC].getID(), up);
+			}
+	    } else if(aC == 1) {
+	    	if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] != 1) {
+				Literal up = Literal.parseLiteral("empty(" + rXLoc[aC].getOnFrontX() + "," + rXLoc[aC].getOnFrontY() + ")");
+				addPercept(rXLoc[aC].getID(), up);
+	    	} else {
+	    		// -1: neither L nor R empty
+	    		//  0: only L empty
+	    		//  1: only R empty
+	    		//  2: both empty
+	    		int whatEmpty = -1;
+	    		int direction = -1;
+	    		if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] != 1) {
+	    			whatEmpty = 1;
+	    			direction = 0;
+	    		}
+	    		if (mazeData[rXLoc[aC].getOnLeftX()][rXLoc[aC].getOnLeftY()] != 1) {
+	    			whatEmpty++;
+	    			direction = 1;
+	    		}
+	    		if (whatEmpty == 2) {
+	    			direction = ThreadLocalRandom.current().nextInt(0, 2);
+	    		}
+				Literal newEmpty;
+				if (direction == 0) {
+					newEmpty = Literal.parseLiteral("empty(" + rXLoc[aC].getOnRightX() + "," + rXLoc[aC].getOnRightY() + ")");
+					addPercept(rXLoc[aC].getID(), newEmpty);
+				} else if (direction == 1) {
+					newEmpty = Literal.parseLiteral("empty(" + rXLoc[aC].getOnLeftX() + "," + rXLoc[aC].getOnLeftY() + ")");
+					addPercept(rXLoc[aC].getID(), newEmpty);
+				}
+	    	}
+	    } else if(aC == 2) {
+	    	int priority1, priority2, priority3;  
+//	    	int temp = ThreadLocalRandom.current().nextInt(0, 3);
+	    	priority1 = 0;
+	    	priority2 = 1;
+	    	priority3 = 2;
+	    	int howManyRoads = 0;
+	    	if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] != 1) {
+				Literal up = Literal.parseLiteral("empty(" + priority1 + "," 
+					+ rXLoc[aC].getOnFrontX() + "," + rXLoc[aC].getOnFrontY() + "," 
+					+ rXLoc[aC].getZX() + "," + rXLoc[aC].getZY() + ")");
+				addPercept(rXLoc[aC].getID(), up);
+				howManyRoads++;
+	    	}
+	    	if (mazeData[rXLoc[aC].getOnLeftX()][rXLoc[aC].getOnLeftY()] != 1) {
+				Literal left = Literal.parseLiteral("empty(" + priority2 + "," 
+					+ rXLoc[aC].getOnLeftX() + "," + rXLoc[aC].getOnLeftY() + "," 
+					+ -rXLoc[aC].getZY() + "," + rXLoc[aC].getZX() + ")");
+				addPercept(rXLoc[aC].getID(), left);
+				howManyRoads++;
+	    	}
+	    	if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] != 1) {
+				Literal right = Literal.parseLiteral("empty(" + priority3 + "," 
+					+ rXLoc[aC].getOnRightX() + "," + rXLoc[aC].getOnRightY() + "," 
+					+ rXLoc[aC].getZY() + "," + -rXLoc[aC].getZX() + ")");
+				addPercept(rXLoc[aC].getID(), right);
+				howManyRoads++;
+			}
+			if (howManyRoads > 1) {
+				Literal cross = Literal.parseLiteral("crossroad(slots)");
+				addPercept(rXLoc[aC].getID(), cross);
+			}
+	    }
+	}
 	
-	private void nextSlot(int agentsCounter) { //throw Exception {
-		if (agentsCounter == 0) {
-			int[] deksia = new int[2];
-			deksia[0] = rXLoc[agentsCounter][0];
-			deksia[1] = rXLoc[agentsCounter][1];
-			switch (rXLoc[agentsCounter][2]) {
-			case 0:
-				deksia[1]++;
-				break;
-			case 1: 
-				deksia[0]++;
-				break;
-			case 2: 
-				deksia[1]--;
-				break;
-			default: 
-				deksia[0]--;
-				break;
-			}
-//			logger.info("("+deksia[0]+","+deksia[1]+"), "+ mazeData[deksia[0]][deksia[1]]);
-			if (mazeData[deksia[0]][deksia[1]] == 0 || mazeData[deksia[0]][deksia[1]] == 2) {
-				mazeData[rXLoc[agentsCounter][0]][rXLoc[agentsCounter][1]] = 0;
-				rXLoc[agentsCounter][0] = deksia[0];
-				rXLoc[agentsCounter][1] = deksia[1];
-				
-				if (mazeData[deksia[0]][deksia[1]] != 2) {
-					mazeData[deksia[0]][deksia[1]] = 11;
-				}
-				rXLoc[agentsCounter][2] = rXLoc[agentsCounter][2]+1>3?0:rXLoc[agentsCounter][2]+1;
-			} else {
-				rXLoc[agentsCounter][2] = rXLoc[agentsCounter][2]-1<0?3:rXLoc[agentsCounter][2]-1;
-			}
-		} else if (agentsCounter == 1) {
-			int[] mprosta = new int[2];
-			mprosta[0] = rXLoc[agentsCounter][0];
-			mprosta[1] = rXLoc[agentsCounter][1];
-			switch (rXLoc[agentsCounter][2]) {
-			case 0:
-				mprosta[0]--;
-				break;
-			case 1: 
-				mprosta[1]++;
-				break;
-			case 2: 
-				mprosta[0]++;
-				break;
-			default: 
-				mprosta[1]--;
-				break;
-			}
-			if (mazeData[mprosta[0]][mprosta[1]] == 0 || mazeData[mprosta[0]][mprosta[1]] == 2) {
-				mazeData[rXLoc[agentsCounter][0]][rXLoc[agentsCounter][1]] = 0;
-				rXLoc[agentsCounter][0] = mprosta[0];
-				rXLoc[agentsCounter][1] = mprosta[1];
-				if (mazeData[mprosta[0]][mprosta[1]] != 2) {
-					mazeData[mprosta[0]][mprosta[1]] = 12;
-				}
-			} else {
-				int direction;
-				do {
-					direction = (int) (Math.random() * 4);
-				} while (rXLoc[agentsCounter][2] == direction);
-				rXLoc[agentsCounter][2] = direction;
-			}
+	/**
+	* Update the position of the agent on mazeData according to his belief base,
+	* so as to move him on the GUI
+	*
+	* @param aC: the number of the specific agent (0: first agent, 1: second...)
+	* @param x: The new x'x position
+	* @param y: The new y'y position
+	* @param zx: The new ZX direction
+	* @param zy: The new ZY direction
+	*/
+	private void nextSlot(int aC, int x, int y, int zx, int zy) {
+		mazeData[rXLoc[aC].getX()][rXLoc[aC].getY()] = 0; // Empty the previous position
+		rXLoc[aC].setXY(x,y);
+		rXLoc[aC].setZ(zx,zy);
+		if (mazeData[x][y] == 0) {
+			mazeData[x][y] = rXLoc[aC].getLocOnMD();
 		}
 	}
 	
+	/**
+	* Because the agent is in the finishing cell, remove the agent from the GUI
+	* and print a message
+	*
+	* @param aC: the number of the specific agent (0: first agent, 1: second...)
+	*/
+	private void removeAgentFromMD(int aC) {
+		mazeData[rXLoc[aC].getX()][rXLoc[aC].getY()] = 0;
+    	logger.info("=== Agent " + rXLoc[aC].getID() + " finished ===");
+	}
 	
 	/*Recursive division*/
 	private void recursiveDivision(Point start, Point end){
@@ -230,54 +297,55 @@ public class MazeEnv extends Environment {
 		}
 	}
 	
-	/*Place the agents on the maze*/
+	/**
+	* Find a valid starting location for each agent and place it on the maze.
+	* Valid starting location is an empty space
+	*
+	* @param mazeSize: The width/hight of the maze
+	*/
 	private void placeAgents(int mazeSize){
-			rXLoc = new int[2][3];//init
-		{
+		rXLoc = new AgentLocation[3];
+		List<String> nameOfAlgorithms = new ArrayList<>();
+		nameOfAlgorithms.add("Right Wall Follower");
+		nameOfAlgorithms.add("Random Mouse");
+		nameOfAlgorithms.add("Tremaux");
+		
+		for (int aC = 0; aC< rXLoc.length; aC++) {
 			int x;
 			int y;
-			do {
-				x = (int) (Math.random() * mazeSize-1);
-				y = (int) (Math.random() * mazeSize-1);
-			} while (mazeData[x][y] == 1);
-		
-			rXLoc[0][0] = x;
-			rXLoc[0][1] = y;
-			rXLoc[0][2] = 1;
-			mazeData[x][y] = 11;
-		}
-		{
-			int x;
-			int y;
-			do {
-				x = (int) (Math.random() * mazeSize-1);
-				y = (int) (Math.random() * mazeSize-1);
-			} while (mazeData[x][y] == 1);
-		
-			rXLoc[1][0] = x;
-			rXLoc[1][1] = y;
-			rXLoc[1][2] = 1;
-			mazeData[x][y] = 12;
+			do { // random locations
+				x = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
+				y = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
+			} while (mazeData[x][y] != 0); // until empty space
+			int z = ThreadLocalRandom.current().nextInt(0, 4); //random direction
+			int zx,zy;
+			zx = (z!=3?z-1:0);
+			zy = (z<2?z:(z==2?0:-1));
+			int tempIDpartName = 1+aC; // r1 for the first agent, r2 for the next...
+			rXLoc[aC] = new AgentLocation(nameOfAlgorithms.get(aC),x,y,zx,zy,11+aC,"r"+tempIDpartName);
+			mazeData[x][y] = rXLoc[aC].getLocOnMD();
 		}
 	}
 	
-	/*Place the finish location on the maze*/
+	/** 
+	* Find a valid finish finish location and place it on the maze
+	* Valid finish location is an empty space
+	*
+	* @param mazeSize: The width/hight of the maze
+	*/
 	private void placeFinishLocation(int mazeSize) {
 		int x;
 		int y;
 		do {
-			x = (int) (Math.random() * mazeSize-1);
-			y = (int) (Math.random() * mazeSize-1);
+			x = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
+			y = ThreadLocalRandom.current().nextInt(0, mazeSize-1);
 		} while (mazeData[x][y] == 1);
-		finishLoc = new int[2];//init
-		finishLoc[0] = x;
-		finishLoc[1] = y;
-		
+		finishLoc = new Point(x, y);//init
 		mazeData[x][y] = 2;
-		
+
 	}
 	
-	/*Prints maze in console, used in debugging*/
+	/** Prints maze in console, used in debugging*/
 	private void printMaze(){
 		String mazeString = new String();
 		mazeString += "\n";
