@@ -112,7 +112,7 @@ public class MazeEnv extends Environment {
 	*/
 	private void clearPercepts(int aC) {
 	//	clearPercepts();
-		if (aC == 1 || aC == 0) {
+		if (aC == 1 || aC == 0 || aC == 3) {
 			clearPercepts(rXLoc[aC].getID());
 		} else if ( aC == 2) {
 			removePerceptsByUnif(rXLoc[aC].getID(), Literal.parseLiteral("empty(_,_,_,_,_)"));
@@ -133,16 +133,10 @@ public class MazeEnv extends Environment {
 				|| mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] == 2) {
 			Literal finish = Literal.parseLiteral("finish(" + rXLoc[aC].getID() + ")");
 			addPercept(rXLoc[aC].getID(), finish);
-		} 
-	    if (aC == 0) {
-			if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] != 1) {
-				Literal right = Literal.parseLiteral("rightEmpty(" + rXLoc[aC].getOnRightX() + "," + rXLoc[aC].getOnRightY() + ")");
-				addPercept(rXLoc[aC].getID(), right);
-			} else if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] != 1) {
-				Literal up = Literal.parseLiteral("upEmpty(" + rXLoc[aC].getOnFrontX() + "," + rXLoc[aC].getOnFrontY() + ")");
-				addPercept(rXLoc[aC].getID(), up);
-			}
-	    } else if(aC == 1) {
+			aC = -1;
+		}
+		switch (aC) {
+		case 1:
 	    	if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] != 1) {
 				Literal up = Literal.parseLiteral("empty(" + rXLoc[aC].getOnFrontX() + "," + rXLoc[aC].getOnFrontY() + ")");
 				addPercept(rXLoc[aC].getID(), up);
@@ -173,7 +167,8 @@ public class MazeEnv extends Environment {
 					addPercept(rXLoc[aC].getID(), newEmpty);
 				}
 	    	}
-	    } else if(aC == 2) {
+			break;
+		case 2:
 	    	int priority1, priority2, priority3;  
 //	    	int temp = ThreadLocalRandom.current().nextInt(0, 3);
 	    	priority1 = 0;
@@ -205,7 +200,28 @@ public class MazeEnv extends Environment {
 				Literal cross = Literal.parseLiteral("crossroad(slots)");
 				addPercept(rXLoc[aC].getID(), cross);
 			}
-	    }
+			break;
+		case 0:
+		case 3:
+	    	if (mazeData[rXLoc[aC].getOnFrontX()][rXLoc[aC].getOnFrontY()] != 1) {
+				Literal up = Literal.parseLiteral("empty(" + rXLoc[aC].getOnFrontX() 
+					+ "," + rXLoc[aC].getOnFrontY() + ")");
+				addPercept(rXLoc[aC].getID(), up);
+	    	}
+	    	if (mazeData[rXLoc[aC].getOnLeftX()][rXLoc[aC].getOnLeftY()] != 1) {
+				Literal left = Literal.parseLiteral("empty(" + rXLoc[aC].getOnLeftX() 
+				+ "," + rXLoc[aC].getOnLeftY() + ")");
+				addPercept(rXLoc[aC].getID(), left);
+	    	}
+	    	if (mazeData[rXLoc[aC].getOnRightX()][rXLoc[aC].getOnRightY()] != 1) {
+				Literal right = Literal.parseLiteral("empty(" + rXLoc[aC].getOnRightX() 
+					+ "," + rXLoc[aC].getOnRightY() + ")");
+				addPercept(rXLoc[aC].getID(), right);
+			}
+			break;
+		default:
+			break;
+		}
 	}
 	
 	/**
@@ -304,11 +320,12 @@ public class MazeEnv extends Environment {
 	* @param mazeSize: The width/hight of the maze
 	*/
 	private void placeAgents(int mazeSize){
-		rXLoc = new AgentLocation[3];
+		rXLoc = new AgentLocation[4];
 		List<String> nameOfAlgorithms = new ArrayList<>();
 		nameOfAlgorithms.add("Right Wall Follower");
 		nameOfAlgorithms.add("Random Mouse");
 		nameOfAlgorithms.add("Tremaux");
+		nameOfAlgorithms.add("Pledge");
 		
 		for (int aC = 0; aC< rXLoc.length; aC++) {
 			int x;

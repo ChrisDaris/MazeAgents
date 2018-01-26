@@ -7,7 +7,7 @@ MAS mazeAgents {
     environment: MazeEnv
     
     agents:
-       r1; r2; r3;
+       r1; r2; r3; r4;
 
 }
 
